@@ -30,15 +30,15 @@ from scipy.spatial import KDTree
 from mapUtilities import *
 
 # Parameters of PRM
-N_SAMPLE = 800  # number of sample_points
+N_SAMPLE = 2000 #200  # number of sample_points
 N_KNN = 10  # number of edge from one sampled point (one node)
-MAX_EDGE_LEN = 3  # Maximum edge length, in [m]
+MAX_EDGE_LEN = 10 # 10  # Maximum edge length, in [m]
 
 show_plot = True
 
 # When set to false, you can run this script stand-alone, it will use the information specified in main
 # When set to true, you are expected to use this with the stack and the specified map
-use_map = True
+use_map = False
 
 def prm_graph(start, goal, obstacles_list, robot_radius, *, rng=None, m_utilities=None):
     """
@@ -64,8 +64,13 @@ def prm_graph(start, goal, obstacles_list, robot_radius, *, rng=None, m_utilitie
         # [Part 2] TODO The radius of the robot and the maximum edge lengths are given in [m], but the map is given in cell positions.
         # Therefore, when using the map, the radius and edge length need to be adjusted for the resolution of the cell positions
         # Hint: in the map utilities there is the resolution stored
-        robot_radius = ...
-        max_edge_len = ...
+        robot_radius = 0.2 # Was 0.105 but adding a buffer to give robot some more room when pasing obstacles
+        max_edge_len = MAX_EDGE_LEN
+        # Get resolution
+        resolution = m_utilities.getResolution()
+        # Divide radius and max edge len by resolusion 
+        robot_radius /= resolution
+        max_edge_len /=  resolution
 
     # Get sample data
     sample_points = generate_sample_points(start, goal,
@@ -158,10 +163,40 @@ def generate_sample_points(start, goal, rr, obstacles_list, obstacle_kd_tree, rn
     sample_x, sample_y = [], []
 
     while len(sample_x) <= N_SAMPLE:
-        ...
+        # Generate random x and y points within the min and max bounds
+        x_rand = rng.uniform(min(ox), max(ox))
+        y_rand = rng.uniform(min(oy), max(oy))
+
+        # Rounds the points if use_map is true
+        if use_map:
+            x_rand = int(round(x_rand))
+            y_rand = int(round(y_rand))
+        
+        # Use KDTree to find the nearest obstacle
+        dist_to_obstacle = obstacle_kd_tree.query([x_rand, y_rand])[0]
+        
+        # Make sure the sample points are in free space and not too close to any obstacles
+        if dist_to_obstacle > rr:
+            # Check that the new point is not too close to existing points
+            # if len(sample_x) > 0:
+            #     current_samples_tree = KDTree(np.column_stack((sample_x, sample_y)))
+            #     dist_to_samples = current_samples_tree.query([x_rand, y_rand])[0]
+                
+            #     # Ensure the point is sufficiently far from existing points
+            #     if dist_to_samples < 2 * rr:
+            #         continue  # Skip adding this point, as it's too close to existing samples
+
+            # Add the new point if it's valid
+            sample_x.append(x_rand)
+            sample_y.append(y_rand)
+        # print(len(sample_x), "\n")
     
     # [Part 2] TODO Add also the start and goal to the samples so that they are connected to the roadmap
-    ...
+    # Append the start and end goals to the samples
+    sample_x.append(sx)
+    sample_y.append(sy)
+    sample_x.append(gx)
+    sample_y.append(gy)
 
     return [sample_x, sample_y]
 
@@ -187,7 +222,29 @@ def is_collision(sx, sy, gx, gy, rr, obstacle_kd_tree, max_edge_len):
     # [Part 2] TODO Check where there would be a collision with an obstacle between two nodes at sx,sy and gx,gy, and wether the edge between the two nodes is greater than max_edge_len
     # Hint: you may leverage on the query function of KDTree
     
-    ...
+    # Get distance between start and end points
+    dx = gx - sx
+    dy = gy - sy
+    distance = math.hypot(dx, dy)
+
+    # Check if the edge exceeds the max_edge_len
+    if distance > max_edge_len:
+        return True
+
+
+    # Divide the distance between start and end point into steps that are the size of half the robot radius
+    steps = max(int(round(distance / (rr/2))), 2)
+
+    # Iterate through each point along the path
+    for i in range(steps):
+        # Calculate the x and y coordinate of the points at each step
+        x = sx + i * dx / steps
+        y = sy + i * dy / steps
+        # Use KDTree to find the distance from the current point to the nearest obstacle
+        dist = obstacle_kd_tree.query([x, y])[0]
+        # If the obstacle distance is less then the robot radius, the robot and the obstacle are on the same point
+        if dist <= rr:
+            return True  # Collision detected
 
     return False  # No collision
 
@@ -222,7 +279,27 @@ def generate_road_map(sample_points, rr, obstacle_kd_tree, max_edge_len, m_utili
     #[Part 2] TODO Generate roadmap for all sample points, i.e. create the edges between nodes (sample points)
     # Note: use the is_collision function to check for possible collisions (do not make an edge if there is collision)
     # Hint: you may ceate a KDTree object to help with the generation of the roadmap, but other methods also work
-    ...
+    
+    # Create a KDTree for the sample points
+    sample_points_tree = KDTree(np.column_stack((sample_x, sample_y)))
+
+    # Initialize the roadmap as a list of lists
+    road_map = [[] for _ in range(len(sample_x))]
+
+    # Iterate over all sample points
+    for i in range(n_sample):
+        # Find the N_KNN nearest neighbors (including the point itself)
+        indices = sample_points_tree.query([sample_x[i], sample_y[i]], k=N_KNN + 1)[1]
+
+        # Iterate over the neighbors, skipping the point itself
+        for j in range(1, len(indices)):
+            neighbor_index = indices[j]
+
+            # Check for collision and edge length
+            if not is_collision(sample_x[i], sample_y[i], sample_x[neighbor_index], 
+                sample_y[neighbor_index], rr, obstacle_kd_tree, max_edge_len):
+                # Add the neighbor to the roadmap
+                road_map[i].append(neighbor_index)
 
     return road_map
 

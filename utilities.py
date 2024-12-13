@@ -72,7 +72,9 @@ class FileReader:
                     read_headers=True
                     break
             
-            next(file)
+            # Makes it so the first data line in the planned path is not skipped
+            if not self.filename == "planned_path.csv":
+                next(file)
             
             # Read each line and extract values
             for line in file:

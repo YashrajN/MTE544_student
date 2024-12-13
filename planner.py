@@ -2,14 +2,17 @@ from mapUtilities import *
 from a_star import *
 from probabilistic_road_map import *
 import time
+from utilities import Logger
 
 POINT_PLANNER=0; TRAJECTORY_PLANNER=1; ASTAR_PLANNER=2; PRM_PLANNER=3
 
 class planner:
-    def __init__(self, type_, mapName="room"):
+    def __init__(self, type_, mapName="room", loggerName="planned_path.csv", loggerHeaders=["x", "y"]):
 
         self.type=type_
         self.mapName=mapName
+        # Uses logger class to store planned path points in csv
+        self.path_logger = Logger(loggerName, loggerHeaders)
 
     
     def plan(self, startPose, endPose):
@@ -47,7 +50,29 @@ class planner:
         # [Part 3] TODO Use the PRM and search_PRM to generate the path
         # Hint: see the example of the ASTAR case below, there is no scaling factor for PRM
         if type == PRM_PLANNER:
-            ...
+
+            # Define robot's radius as per piazza
+            robot_radius = 0.2  
+
+            # Generate PRM graph using probabilistic roadmap
+            sample_points, prm_roadmap = prm_graph(
+                start=startPose,
+                goal=endPose,
+                obstacles_list=self.obstaclesListCell,
+                robot_radius=robot_radius,
+                rng=None,
+                m_utilities=self.m_utilities
+            )
+
+            # Start the time to keep track of how long it takes to generate path using PRM
+            start_time = time.time()
+            
+            # Search for a path in the PRM using search_PRM
+            path_ = search_PRM(sample_points, prm_roadmap, startPose, endPose)
+
+            # Ends time to see how long PRM took
+            end_time = time.time()
+            print(f"The time took for PRM pathfinding was {end_time - start_time}")
 
         elif type == ASTAR_PLANNER: # This is the same planner you should have implemented for Lab4
             scale_factor = 4 # Depending on resolution, this can be smaller or larger
@@ -65,6 +90,10 @@ class planner:
             path_ = [[x*scale_factor, y*scale_factor] for x,y in path ]
 
         Path = np.array(list(map(self.m_utilities.cell_2_position, path_ )))
+
+        # Log the generated path
+        for point in Path:
+            self.path_logger.log_values([point[0], point[1]])
 
         # Plot the generated path
         plt.plot(self.obstaclesList[:,0], self.obstaclesList[:,1], '.')

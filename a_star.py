@@ -216,6 +216,80 @@ def search_PRM(points, prm, start, end):
 
     path_points = []
 
-    ...
+    # Initialize open and closed dictionaries
+    # Store nodes that have not been visited as a dictionary with indices as keys
+    yet_to_visit_dict = {start_idx: start_node}
+
+    # Stores visited nodes
+    visited_dict = {}
+
+    # Adding a stop condition to avoid infinite loop
+    outer_iterations = 0
+    max_iterations = len(points) * 10
+
+    while len(yet_to_visit_dict) > 0:
+        outer_iterations += 1
+
+        # Get the current node with lowest f cost
+        current_node_position = min(yet_to_visit_dict, key=lambda pos: yet_to_visit_dict[pos].f)
+        current_node = yet_to_visit_dict[current_node_position]
+
+        # Check max iterations
+        if outer_iterations > max_iterations:
+            print("Giving up on pathfinding, too many iterations")
+            path_points = [points[current_node.position]]
+            return path_points
+
+        # Remove current node from yet_to_visit and add to visited
+        yet_to_visit_dict.pop(current_node.position)
+        visited_dict[current_node.position] = True
+
+        # Check if goal is reached
+        if current_node.position == end_node.position:
+            # If goal is reached, reconstruct the path by backtracking from the current node
+            while current_node is not None:
+                # Insert each node at the beginning
+                path_points.insert(0, points[current_node.position])
+                # Move to the parent node
+                current_node = current_node.parent
+            # Return the reconstructed path
+            return path_points
+
+        # Generate children (neighbors in the PRM)
+        # PRM stores the adjacency list
+        for neighbor_idx in prm[current_node.position]:
+            # Skip neighbors that have already been visited
+            if visited_dict.get(neighbor_idx, False):
+                continue
+
+            # Create new node for the neighbor
+            neighbor_node = Node(current_node, neighbor_idx)
+
+            # Calculate g cost (Euclidean distance)
+            current_point = points[current_node.position]
+            neighbor_point = points[neighbor_idx]
+            neighbor_node.g = current_node.g + sqrt(
+                ((current_point[0] - neighbor_point[0]) ** 2) + 
+                ((current_point[1] - neighbor_point[1]) ** 2)
+            )
+
+            # Calculate heuristic cost (Euclidean distance to goal)
+            end_point = points[end_node.position]
+            neighbor_node.h = sqrt(
+                ((neighbor_point[0] - end_point[0]) ** 2) + 
+                ((neighbor_point[1] - end_point[1]) ** 2)
+            )
+
+            # Calculate f cost as the sum of g and h
+            neighbor_node.f = neighbor_node.g + neighbor_node.h
+
+            # Check if this neighbor is already in the open set (yet_to_visit)
+            # If it is, only update it if the new g cost is lower (better path)
+            existing_node = yet_to_visit_dict.get(neighbor_idx, False)
+            if existing_node and neighbor_node.g >= existing_node.g:
+                continue
+
+            # Add or update the neighbor in yet_to_visit
+            yet_to_visit_dict[neighbor_idx] = neighbor_node
     
     return path_points
