@@ -60,6 +60,10 @@ def plot_robot_and_planned_path():
 
     # Plot planned path
     plt.plot(planned_x, planned_y, color='orange', linestyle='-', marker='*', label="Planned Path (x, y)")
+
+    # Highlight start and goal points
+    plt.scatter(planned_x[0], planned_y[0], color='blue', edgecolor='black', s=100, label="Start Pose", marker='s')  # Boxed start point
+    plt.scatter(planned_x[-1], planned_y[-1], color='red', edgecolor='black', s=100, label="Goal Pose", marker='o')  # Circled goal point
   
     plt.xlabel("X Position")
     plt.ylabel("Y Position")
